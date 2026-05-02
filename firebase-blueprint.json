@@ -1,0 +1,181 @@
+{
+  "entities": {
+    "Notification": {
+      "title": "Notification",
+      "description": "Real-time alert for users",
+      "type": "object",
+      "properties": {
+        "recipientId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["booking_new", "booking_update", "sos_nearby"] },
+        "relatedId": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "User": {
+      "title": "User",
+      "description": "App user profile (Owner, Mechanic, or Admin)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["owner", "mechanic", "admin"] },
+        "phone": { "type": "string" },
+        "region": { "type": "string" },
+        "gender": { "type": "string", "enum": ["male", "female", "other"] },
+        "age": { "type": "integer" },
+        "yearOfBirth": { "type": "string" },
+        "isApproved": { "type": "boolean", "default": false },
+        "carInfo": { "type": "string", "description": "Owner's vehicle details" },
+        "garageInfo": { "type": "string", "description": "Mechanic's garage details" },
+        "garageLocation": { "type": "string" },
+        "offeredServices": { "type": "array", "items": { "type": "string" } },
+        "photoURL": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "suspended", "pending"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "role"]
+    },
+    "MechanicProfile": {
+      "title": "Mechanic Profile",
+      "description": "Additional public info for mechanics",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "specialty": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "distance": { "type": "string" },
+        "isAvailable": { "type": "boolean" },
+        "isApproved": { "type": "boolean" },
+        "location": { "type": "object" }
+      }
+    },
+    "AdminLog": {
+      "title": "Admin Log",
+      "description": "System activity logs for oversight",
+      "type": "object",
+      "properties": {
+        "adminId": { "type": "string" },
+        "action": { "type": "string" },
+        "targetId": { "type": "string" },
+        "details": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Service request and matching status",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "mechanicId": { "type": "string" },
+        "serviceType": { "type": "string" },
+        "carModel": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "completed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "SOSAlert": {
+      "title": "SOS Alert",
+      "description": "Emergency request with coordinates",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "location": { "type": "object" },
+        "status": { "type": "string", "enum": ["active", "resolved", "cancelled"] },
+        "assignedMechanicId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Spare parts available in marketplace",
+      "type": "object",
+      "properties": {
+        "mechanicId": { "type": "string", "description": "ID of the mechanic listing this part" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "year": { "type": "string" },
+        "carType": { "type": "string" },
+        "manufacturer": { "type": "string" },
+        "condition": { "type": "string", "enum": ["new", "used", "refurbished"] },
+        "contactNumber": { "type": "string" },
+        "category": { "type": "string" },
+        "image": { "type": "string" },
+        "stock": { "type": "integer" },
+        "rating": { "type": "number" },
+        "isApproved": { "type": "boolean", "default": false }
+      }
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer transaction records",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "items": { "type": "array" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "processing", "shipped", "completed"] },
+        "paymentMethod": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "AdminMessage": {
+      "title": "Admin Message",
+      "description": "Daily messages/notifications published by administrators",
+      "type": "object",
+      "properties": {
+        "adminId": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string", "enum": ["daily", "alert", "tip"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Single user record"
+    },
+    "mechanics/{mechanicId}": {
+      "schema": "MechanicProfile",
+      "description": "Public mechanic records for discovery"
+    },
+    "bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Collection of all service bookings"
+    },
+    "sos_alerts/{alertId}": {
+      "schema": "SOSAlert",
+      "description": "History of emergency alerts"
+    },
+    "notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User notifications for bookings and alerts"
+    },
+    "products/{productId}": {
+      "schema": "Product",
+      "description": "Marketplace products"
+    },
+    "orders/{orderId}": {
+      "schema": "Order",
+      "description": "Customer orders"
+    },
+    "admin_logs/{logId}": {
+      "schema": "AdminLog",
+      "description": "System audit logs"
+    },
+    "admin_messages/{messageId}": {
+      "schema": "AdminMessage",
+      "description": "Daily messages for all users"
+    }
+  }
+}

@@ -1,0 +1,147 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Global Safety Net ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Primitives ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isVerified() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'nathy202444@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isApproved() {
+      return isSignedIn() && (
+        request.auth.token.email == 'nathy202444@gmail.com' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isApproved == true ||
+        isAdmin()
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- Validation Blueprints ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['name', 'email', 'role']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.role in ['owner', 'mechanic', 'admin'];
+    }
+
+    function isValidBooking(data) {
+      return data.keys().hasAll(['ownerId', 'serviceType', 'carModel', 'status', 'createdAt', 'updatedAt', 'mechanicId', 'date', 'time']) &&
+             data.ownerId is string &&
+             data.status in ['pending', 'accepted', 'rejected', 'completed', 'cancelled'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['recipientId', 'title', 'message', 'type', 'relatedId', 'read', 'createdAt']) &&
+             data.recipientId is string &&
+             data.read is bool;
+    }
+
+    function isValidSOS(data) {
+      return data.keys().hasAll(['userId', 'location', 'status', 'createdAt', 'type']) &&
+             data.userId == request.auth.uid &&
+             data.status in ['active', 'resolved', 'cancelled'] &&
+             data.createdAt == request.time;
+    }
+
+    // --- Collections ---
+
+    match /users/{userId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && isOwner(userId) && (isValidUser(incoming()) || request.auth.token.email == 'nathy202444@gmail.com');
+      allow update: if isSignedIn() && (
+        (isOwner(userId) && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'carInfo', 'garageInfo', 'photoURL', 'updatedAt', 'region', 'gender', 'age', 'yearOfBirth', 'garageLocation', 'offeredServices'])) ||
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['isApproved', 'status', 'updatedAt', 'role']))
+      );
+      allow delete: if isAdmin() || (isSignedIn() && isOwner(userId));
+    }
+
+    match /mechanics/{mechId} {
+      allow read, write: if true;
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.ownerId == request.auth.uid || resource.data.mechanicId == request.auth.uid));
+      allow create: if true; // Allow server-side creation
+      allow update: if isAdmin() || (isApproved() && (
+        (isOwner(existing().ownerId) && incoming().status == 'cancelled' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+        (isOwner(existing().mechanicId) && incoming().status in ['accepted', 'completed', 'rejected'] && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+      ));
+    }
+
+    match /sos_alerts/{alertId} {
+      allow read: if isAdmin() || isSignedIn();
+      allow create: if (isApproved() || isAdmin()) && isValidSOS(incoming());
+      allow update: if isAdmin() || (isApproved() && (
+        // Patient/Owner can cancel or resolve
+        (isOwner(existing().userId) && incoming().status in ['resolved', 'cancelled'] && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+        // Mechanic can assign themselves
+        (isSignedIn() && incoming().assignedMechanicId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['assignedMechanicId', 'updatedAt'])) ||
+        // Assigned mechanic can update their live location
+        (isSignedIn() && existing().assignedMechanicId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['mechanicLocation', 'updatedAt']))
+      ));
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() && isOwner(existing().recipientId);
+      allow list: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow create: if true; // Allow server-side creation
+      allow update: if isSignedIn() && isOwner(existing().recipientId) && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+    }
+
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || (isApproved() && (
+        (request.method == 'create' && incoming().mechanicId == request.auth.uid) ||
+        (request.method == 'update' && existing().mechanicId == request.auth.uid) ||
+        (request.method == 'delete' && existing().mechanicId == request.auth.uid)
+      ));
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.userId == request.auth.uid || request.auth.uid in resource.data.sellerIds));
+      allow create: if isApproved() && incoming().userId == request.auth.uid;
+      allow update: if isAdmin();
+    }
+
+    match /daily_messages/{msgId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- Helper Functions ---
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+  }
+}

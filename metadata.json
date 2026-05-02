@@ -1,0 +1,6 @@
+{
+  "name": "AutoHub Dashboard",
+  "description": "A responsive dashboard for car owners and mechanics featuring bookings, SOS alerts, auto shop, and profile management.",
+  "requestFramePermissions": ["geolocation", "camera"],
+  "majorCapabilities": []
+}
